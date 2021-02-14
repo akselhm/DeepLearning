@@ -17,9 +17,16 @@ class datagenerator:
         images = []
         labels = np.zeros(size)
         for i in range(size):
-            im = Image.new(1, (n, n), color=1)
+            im = Image.new("1", (n, n), color=1)
             #draw = ImageDraw.Draw(im)
-
+            method = random.randint(1,2)
+            if method == 1:
+                self.rectangle(im, n)
+            if method == 2:
+                self.ellipse(im, n)
+            
+            images.append(im)
+            labels[i] = method
             
 
     def rectangle(self, image, n):
@@ -36,7 +43,50 @@ class datagenerator:
             y0 = random.randint(y0+2,n-1)
 
         draw.rectangle((x0, y0, x1, y1), outline=0)
-        return 
+        #return image
+
+    def ellipse(self, image, n):
+        draw = ImageDraw.Draw(image) 
+        if self.centered:
+            x0 = random.randint(0,n//2-2)
+            y0 = random.randint(0,n//2-2)
+            x1 = n-x0-1
+            y1 = n-y0-1
+        else:
+            x0 = random.randint(0,n-4)
+            y0 = random.randint(0,n-4)
+            x0 = random.randint(x0+3,n-1)
+            y0 = random.randint(y0+3,n-1)
+
+        draw.ellipse((x0, y0, x1, y1), outline=0)
+        #return image
+
+    def lines(self, image, n):
+        draw = ImageDraw.Draw(image)
+        #number of lines
+        lines = random.randint(2,n//3)
+        #position for the lines
+        pos = random.sample(range(n), lines)
+        
+
+
+    def cross(self, image, n):
+        draw = ImageDraw.Draw(image)
+        if self.centered:
+            x0 = random.randint(0,n//2-2)
+            y0 = random.randint(0,n//2-2)
+            x1 = n-x0-1
+            y1 = n-y0-1
+        else:
+            x0 = random.randint(0,n-4)
+            y0 = random.randint(0,n-4)
+            x0 = random.randint(x0+3,n-1)
+            y0 = random.randint(y0+3,n-1)
+        width = random.randint(1, min(y1-y0-1, x1-x0-1))
+        #draw horisontal line
+        draw.line((y0, (y0+y1)//2, y1, (y0+y1)//2), width=width)
+        #draw vertical line
+        draw.line(((x0+x1)//2, y0, (x0+x1)//2, y1), width=width)
 
     """
     def generate(self):
