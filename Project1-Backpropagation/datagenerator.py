@@ -16,7 +16,7 @@ class datagenerator:
         size = self.size
         n = self.n
         images = []
-        labels = np.zeros(size)
+        labels = np.zeros((size, 4))
         for i in range(size):
             im = Image.new("1", (n, n), color=1)
             #draw = ImageDraw.Draw(im)
@@ -29,10 +29,10 @@ class datagenerator:
                 self.lines(im, n)
             if method == 4:
                 self.cross(im, n)
-            
             images.append(im)
-            labels[i] = method
+            labels[i][method-1] = 1
             #im.show()
+        return images, labels
             
 
     def rectangle(self, image, n):
@@ -67,7 +67,6 @@ class datagenerator:
             x1 = x0+diameter
             y1 = y0+diameter
 
-
         draw.ellipse((x0, y0, x1, y1), outline=0)
         #return image
 
@@ -80,7 +79,6 @@ class datagenerator:
         pos = random.sample(range(n), lines)
         for p in pos:
             draw.line((0, p, n, p), width=1)
-
 
 
     def cross(self, image, n):
@@ -103,7 +101,7 @@ class datagenerator:
         draw.line((x0, (y0+y1)//2, x1, (y0+y1)//2), width=width)
         #draw vertical line
         draw.line(((x0+x1)//2, y0, (x0+x1)//2, y1), width=width)
-
+        
     def im2grid(self, images):
         # images: list of images
         # returns: array of grids representing all images
@@ -119,3 +117,19 @@ class datagenerator:
         for i in range(self.size):
             arr[i] = gridarray[i].flatten()
         return arr
+
+
+
+# --------------------------- test -------------------------------
+"""
+gen = datagenerator(12, 2, 0, centered=False)
+
+images, target = gen.generate()
+#print(images)
+#print(np.array(images[0]).astype(int))
+mat = gen.im2grid(images)
+print(mat)
+#print(mat[0].flatten())
+#print(gen.grid2array(mat))
+print(target)
+"""
