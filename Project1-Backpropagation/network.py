@@ -149,11 +149,11 @@ class network:
         
             #2. Pass JLS back through the Softmax layer, modifying it to JLN , which represents the derivative of the loss with respect to the outputs of the layer prior to the softmax, layer N.
             JSN = np.diag(out) - np.outer(out, out) #softmax jacobian
-            JLN = np.dot(JLS, JSN)
+            JLN = np.dot(JLS, JSN) #duble check this
 
         #3. Pass JLN to layer N, which uses it to compute its delta Jacobian, δN .
-        for i in range(len(self.layers), 0, -1):
-            JLN = self.layers[i-1].backward_pass(JLN)
+        for i in range(len(self.layers)-1, 0, -1):
+            JLN = self.layers[i].backward_pass(JLN, case, self.layers[i-1].nodes[case])
         #4. Use δN to compute: a) weight gradients JLW for the incoming weights to N, b) bias gradients JLB for the biases at layer N, and c) JLN−1 to be passed back to layer N-1.
 
         #5. Repeat steps 3 and 4 for each layer from N-1 to 1. Nothing needs to be passed back to the Layer 0, the input layer. 
