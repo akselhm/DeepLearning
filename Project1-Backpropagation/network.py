@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 from layer import layer
 from datagenerator import datagenerator
@@ -22,8 +23,7 @@ class network:
         self.lr     = lr
         self.softmax_on = softmax_on
 
-        self.loss_case = np.zeros(len(images))  #store the loss for each case
-        self.lossiter = []  #store the total loss for each iteration (image)
+        self.loss_list = []  #store the total
 
         """
         # Prior way to initiate layers (DELETE?)
@@ -120,7 +120,7 @@ class network:
         # iterate through the layers
         upstreamout =  self.images[case]
         for i in range(len(self.layers)):
-            upstreamout = self.layers[i].forward_pass(upstreamout, case)
+            upstreamout = self.layers[i].forward_pass(upstreamout)
         out = upstreamout
 
         #sotmax
@@ -128,15 +128,16 @@ class network:
             out = self.softmax(out)
 
         #loss function (make functionality for selection)
-        loss = self.cross_entropy(self.target, out)
+        loss = self.cross_entropy(self.target[case], out)
         print(loss)
+        self.loss_list.append(loss)
         return out, loss
 
 
-    def backward_pass(self, loss, out, case):
+    def backward_pass(self, loss, out):
         """
         parameters:
-        out: the output of the forward pass given as a 1x4-array
+        out: the output of the forward pass given as a 1x4-array (typically softmaxed)
         loss: single array of losses for each class (1x4)
         case: index of the case (image) to pass. The image is represented as a single array
         returns: 
@@ -149,32 +150,57 @@ class network:
         
             #2. Pass JLS back through the Softmax layer, modifying it to JLN , which represents the derivative of the loss with respect to the outputs of the layer prior to the softmax, layer N.
             JSN = np.diag(out) - np.outer(out, out) #softmax jacobian
-            JLN = np.dot(JLS, JSN) #duble check this
+            JLN = np.dot(JLS, JSN) #double check this (JLZ from lecture notes) 
 
         #3. Pass JLN to layer N, which uses it to compute its delta Jacobian, δN .
-        for i in range(len(self.layers)-1, 0, -1):
-            JLN = self.layers[i].backward_pass(JLN, case, self.layers[i-1].nodes[case])
+        for i in range(len(self.layers)-1, 0, -1):  #iterate backwards through the layers
+            JLN = self.layers[i].backward_pass(JLN, self.layers[i-1].nodes)
+
         #4. Use δN to compute: a) weight gradients JLW for the incoming weights to N, b) bias gradients JLB for the biases at layer N, and c) JLN−1 to be passed back to layer N-1.
 
         #5. Repeat steps 3 and 4 for each layer from N-1 to 1. Nothing needs to be passed back to the Layer 0, the input layer. 
 
         #6. After all cases of the minibatch have been passed backwards, and all weight and bias gradients havebeen computed and accumulated, modify the weights and biases.
-"""
-    def update_weigths(self):
 
-"""
+    #def update_weigths(self):
+
+    def plot_loss(self):
+        #not complete
+        plt.figure()
+        loss = self.loss_list
+        plt.plot(loss)
+        plt.title('Loss')
+        plt.xlabel(r'image')
+        plt.ylabel(r'loss')
+
 
 # ---------------------- test (or run)---------------------------------------
 
 #generate images and convert to array
-n = 12 #number of pixels in each direction
+n = 12 #number of pixels in each direction; dimention n*n
 trainingsize = 3
-gen = datagenerator(12, trainingsize, 0, centered=False)
+gen = datagenerator(n, trainingsize, 0, centered=False)
 images, target = gen.generate()
 #print(images)
 print(target)
 imgrid = gen.im2grid(images)
 imarr = gen.grid2array(imgrid)
+
+# split into train, validate, test
+split = [0.7, 0.1, 0.2]
+
+train = (len(imarr)//split[0])
+val = (len(imarr)//split[1])
+test = (len(imarr)//split[2])
+
+x_train = imarr[:train]
+y_train = target[:train]
+
+x_val = imarr[train:train+val]
+y_val = target[train:train+val]
+
+x_test = imarr[train+val:]
+y_test = target[train+val:]
 
 # make layers
 nodes1 = 20

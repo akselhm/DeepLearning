@@ -2,13 +2,14 @@ import numpy as np
 import random
 from PIL import Image, ImageDraw
 
+# Not commented !!
 
 class datagenerator:
 
     def __init__(self, n, size, noise, centered=True):
         self.n = n  #size of grid
         self.size = size    #size of dataset
-        self.noise = noise
+        self.noise = noise  #need this !!
         self.centered = centered
 
 
@@ -29,9 +30,12 @@ class datagenerator:
                 self.lines(im, n)
             if method == 4:
                 self.cross(im, n)
+
+            #functionality for adding noise
+
             images.append(im)
             labels[i][method-1] = 1
-            #im.show()
+            # im.show()                             # <---- show images
         return images, labels
             
 
@@ -51,7 +55,7 @@ class datagenerator:
             y1 = y0+y
 
         draw.rectangle((x0, y0, x1, y1), outline=0)
-        #return image
+
 
     def circle(self, image, n):
         draw = ImageDraw.Draw(image) 
@@ -68,7 +72,7 @@ class datagenerator:
             y1 = y0+diameter
 
         draw.ellipse((x0, y0, x1, y1), outline=0)
-        #return image
+
 
     def lines(self, image, n):
         #horisontal lines
@@ -121,15 +125,14 @@ class datagenerator:
 
 
 # --------------------------- test -------------------------------
-"""
-gen = datagenerator(12, 2, 0, centered=False)
+
+gen = datagenerator(50, 7, 0, centered=False)
 
 images, target = gen.generate()
 #print(images)
 #print(np.array(images[0]).astype(int))
 mat = gen.im2grid(images)
-print(mat)
+#print(mat)
 #print(mat[0].flatten())
 #print(gen.grid2array(mat))
 print(target)
-"""

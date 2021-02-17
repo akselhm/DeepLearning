@@ -6,15 +6,15 @@ class layer:
         """
         parameters:_________________________________
         nodes: number of nodes
-        inputs: number of inputs
+        inputs: number of inputs (nodes in upstream layer)
         trainingsize: size of the trainingdataset
         act_func: activation function for the layer. Valid inputs are sigmoid, ReLU, ...
         """
 
         self.bias = np.zeros(nodes)     
-        self.nodes = np.zeros((trainingsize,nodes))    #need to store the values for each case in dataset? 
+        self.nodes = np.zeros(nodes)    #need to store the values for each case in dataset? 
         self.weights = np.ones((nodes, inputs))*0.1 #temporary way to initialize weights (to 0.1), dim(nodes in layer, nodes in upstream layer)
-        self.d_weights = np.zeros((nodes, inputs))
+        self.d_weights = np.zeros((nodes, inputs))  #maybe another way to do this
 
     #  -- activation functions --
 
@@ -45,7 +45,7 @@ class layer:
 
     #  -- forward and backward pass --
 
-    def forward_pass(self, inputs, case):
+    def forward_pass(self, inputs):
         """
         parameters:__________________________________________
         inputs: outputs from the upstream layer (one or more array)
@@ -66,11 +66,11 @@ class layer:
         """
         sums = np.matmul(self.weights,inputs) + self.bias
         output = self.sigmoid(sums)     #dependent on activation function
-        self.nodes[case] = output    
+        self.nodes = output    
         #print(self.nodes)
         return output
 
-    def backward_pass(self, JLN, case, upstream_nodes):
+    def backward_pass(self, JLN, upstream_nodes):
         """
         Parameters:_________________________________
         JLN: the jacobian for the downstream layer N
@@ -82,17 +82,19 @@ class layer:
         #2. Pass JLS back through the Softmax layer, modifying it to JLN , which represents the derivative of the loss with respect to the outputs of the layer prior to the softmax, layer N.
         #3. Pass JLN to layer N, which uses it to compute its delta Jacobian, δN .
 
-        JMSum = np.diag(self.d_sigmoid(self.nodes[case]))    #noted JZSum in lecture notes
+        JMSum = np.diag(self.d_sigmoid(self.nodes))    #noted JZSum in lecture notes
         JNM = np.dot(JMSum, self.weights) #jacobian for this layer, noted JZY in lecture notes
         JLM = np.dot(JNM,JLN)
         #4. Use δN to compute: a) weight gradients JLW for the incoming weights to N, b) bias gradients JLB for the biases at layer N, and c) JLN−1 to be passed back to layer N-1.
 
-        X_T = np.array([upstream_nodes]).T      #not sure if i need this
-        Y_mat = np.array(upstream_nodes*len(JMSum)).reshape(len(JMSum), len(upstream_nodes)).T #create a matrix with upstream nodes (same node on the whole row)
-        JMW = np.dot(Y_mat,JMSum)       #simplified version from lecture slide 2 p. 53
-        JLW = 1
+        X_T = np.array([upstream_nodes]).T      #not sure if I need this
+        Y_mat = np.array(upstream_nodes*len(JMSum)).reshape(len(JMSum), len(upstream_nodes)).T #create a matrix with upstream nodes (same node along the whole row)
+        JMW = np.dot(Y_mat,JMSum)       #simplified version from lecture slide 2 p. 53 (y*z(1-z))
+        JLW = np.dot(JMW,JLM)       # double check dimentions
 
-        JLB = 1
+        JNB = np.dot(JMSum, self.bias) # guess
+        JLB = np.dot(JNB,JLN)
+        
         #5. Repeat steps 3 and 4 for each layer from N-1 to 1. Nothing needs to be passed back to the Layer 0, the input layer. 
         return JLM
         #6. After all cases of the minibatch have been passed backwards, and all weight and bias gradients havebeen computed and accumulated, modify the weights and biases.
