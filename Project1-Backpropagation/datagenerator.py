@@ -6,11 +6,12 @@ from PIL import Image, ImageDraw
 
 class datagenerator:
 
-    def __init__(self, n, size, noise, centered=True):
+    def __init__(self, n, size, noise, centered=True, imshow=False):
         self.n = n  #size of grid
         self.size = size    #size of dataset
         self.noise = noise  #need this !!
         self.centered = centered
+        self.imshow = imshow
 
 
     def generate(self):
@@ -31,13 +32,26 @@ class datagenerator:
             if method == 4:
                 self.cross(im, n)
 
-            #functionality for adding noise
+            #insert noise
+            self.makenoise(im)
 
             images.append(im)
             labels[i][method-1] = 1
-            # im.show()                             # <---- show images
+            if self.imshow: 
+                im.show()                          
         return images, labels
-            
+
+    def makenoise(self, im):
+        num = int(self.noise*self.n**2)
+        for p in range(num):
+            x = random.randint(1,self.n-1)
+            y = random.randint(1,self.n-1)
+            cordinate = x, y
+            #print(im.getpixel(cordinate))
+            if im.getpixel(cordinate) ==1:
+                im.putpixel( (x, y), 0 )
+            else:
+                im.putpixel( (x, y), 1 )
 
     def rectangle(self, image, n):
         draw = ImageDraw.Draw(image)
@@ -126,13 +140,13 @@ class datagenerator:
 
 # --------------------------- test -------------------------------
 
-gen = datagenerator(50, 7, 0, centered=False)
+#generate = datagenerator(50, 5, 0.01, centered=False, imshow=True)
 
-images, target = gen.generate()
+#images, target = generate.generate()
 #print(images)
 #print(np.array(images[0]).astype(int))
-mat = gen.im2grid(images)
+#mat = generate.im2grid(images)
 #print(mat)
 #print(mat[0].flatten())
 #print(gen.grid2array(mat))
-print(target)
+#print(target)

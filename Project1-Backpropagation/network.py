@@ -4,6 +4,24 @@ import matplotlib.pyplot as plt
 from layer import layer
 from datagenerator import datagenerator
 
+# ------------------------ CONFIGURATION ----------------------------------------------------------------------
+
+n = 30              #pixels of image (n*n)
+datasize = 500      #size of dataset
+noise = 0.01        #amount of pixels influenced by noise; 0.01 = 1%
+imshow = False      #set to True to show images on screen
+centered = False    #set to True to center the images
+
+
+#LAYERS (first is input, last is output) possible atcivation functions: 'sigmoid', 'tanh', 'ReLU', 'linear'
+layer_spec = [[n*n, 'none'], [100, 'tanh'], [50, 'ReLU'], [10, 'sigmoid'], [4, 'sigmoid']]
+
+loss_func = 'cross_entropy'
+lr = 0.01
+
+epochs = 300         #one epoch = the whole training set one time 
+
+#--------------------------------------------------------------------------------------------------------
 
 class network:
 
@@ -23,23 +41,8 @@ class network:
         self.lr     = lr
         self.softmax_on = softmax_on
 
-        self.loss_list = []  #store the total
+        self.loss_list = []  #store the total loss
 
-        """
-        # Prior way to initiate layers (DELETE?)
-
-        self.inputlayer  = layer(len(images[0]), 0)
-        self.outputlayer = layer(len(target[0]), hiddenarray[-1])
-        self.hiddenlayers= []
-
-        hiddenarray.insert(0, len(images[0]))   #weigths for the first hiddenlayer
-        for i in range(len(self.hiddenlayers-1)):
-            self.hiddenlayers.append(layer(hiddenarray[i+1], hiddenarray[i]))
-
-        self.layers = self.hiddenlayers
-        self.layers.insert(0, self.inputlayer)
-        self.layers.append(self.outputlayer)
-        """
 
     def softmax(self, output):
         """
@@ -53,15 +56,16 @@ class network:
     def d_softmax(self, z):
         """
         parameters:_______________________________________
-        z: single array of the output for a given case
+        z: single array of the output for a given case (softmaxed)
         ---------
         returns: single array of softmax applied on all outputs
         """
-        return self.softmax(z)*(1 - self.softmax(z))
+        #return self.softmax(z)*(1 - self.softmax(z))
+        return np.diag(z) - np.outer(z, z)
 
     # --- loss functions ---
 
-    def cross_entropy(self, target, output):
+    def cross_entropy(self, target, output):    #Usikker på om denne fungerer riktig
         """
         parameters:__________________________________
         target: single array of the target for a given case
@@ -85,6 +89,9 @@ class network:
 
     # --- derivatives of loss functions ----
 
+    def cross_entropy_deriv(self, targets, predictions):
+        return np.where(predictions != 0, -targets/predictions, 0.0)
+
     def d_MSE(self, target, output):
         """
         parameters:___________________________
@@ -97,6 +104,32 @@ class network:
         f = output # not correct
         return 2*(np.subtract(target,output)*f).mean()
 
+    # ---- regularization -------------------
+    #TODO: implement regulization to forpass and backpass
+
+    def L1(self):
+        sum = 0
+        for l in self.layers:
+            sum += ((l.weights)**2).sum()
+        return 0.5*sum
+    
+    def L2(self):
+        sum = 0
+        for l in self.layers:
+            sum += abs(l.weights).sum()
+        return sum
+
+    def d_L1(self, w):
+        w[w < 0] = -1
+        w[w == 0] = 0
+        w[w > 0] = 1
+        return w
+
+    def d_L2(self, w):
+        return w
+    
+
+    #  -- forward and backward pass --   
 
     def forward_pass(self, case):
         """
@@ -105,17 +138,6 @@ class network:
         returns: 
         out: the output of the forward pass given as a 1x4-array
         loss: single array of losses for each class
-        """
-        """
-        Objective (delete when done)
-        1. Fetch a minibatch of training cases (or one case).
-        2. Send each case through the network, from the input to the output layer. At each layer (L), multiply the
-        outputs of the upstream layer by the weights and then add in the biases. Finally, apply the activation
-        function to these sums to produce the outputs of L.
-        3. Apply the softmax function to the values entering the output layer to produce the network’s outputs.
-        Remember that softmax has no incoming weights.
-        4. Compare the targets to the output values via the loss function.
-        5. Cache any information (such as the outputs of each layer) needed for the backward stage
         """
         # iterate through the layers
         upstreamout =  self.images[case]
@@ -129,12 +151,12 @@ class network:
 
         #loss function (make functionality for selection)
         loss = self.cross_entropy(self.target[case], out)
-        print(loss)
+        #print(loss)
         self.loss_list.append(loss)
         return out, loss
 
 
-    def backward_pass(self, loss, out):
+    def backward_pass(self, loss, out, case):
         """
         parameters:
         out: the output of the forward pass given as a 1x4-array (typically softmaxed)
@@ -142,77 +164,66 @@ class network:
         case: index of the case (image) to pass. The image is represented as a single array
         returns: 
         """
-        JLN = loss # if the network do not have a softmax layer
-
-        #1. Compute the initial Jacobian (JLS) representing the derivative of the loss with respect to the network’s (typically softmaxed) outputs.
-        if self.softmax_on:
-            JLS = self.d_softmax(loss)
+        JLZ = loss # initialize in case the network do not have a softmax layer
+        JLS = self.cross_entropy_deriv(self.target[case], out).reshape(len(self.target[case]), 1)
         
-            #2. Pass JLS back through the Softmax layer, modifying it to JLN , which represents the derivative of the loss with respect to the outputs of the layer prior to the softmax, layer N.
-            JSN = np.diag(out) - np.outer(out, out) #softmax jacobian
-            JLN = np.dot(JLS, JSN) #double check this (JLZ from lecture notes) 
 
-        #3. Pass JLN to layer N, which uses it to compute its delta Jacobian, δN .
+        if self.softmax_on:
+            JSoft = self.d_softmax(out)
+            
+            JLZ = np.dot(JLS.T, JSoft).T
+            
+        
+            #JSN = np.diag(out) - np.outer(out, out) #softmax jacobian
+            #JLN = np.dot(JLS, JSN) #double check this (JLZ from lecture notes) 
+
         for i in range(len(self.layers)-1, 0, -1):  #iterate backwards through the layers
-            JLN = self.layers[i].backward_pass(JLN, self.layers[i-1].nodes)
+            JLZ = self.layers[i].backward_pass(JLZ, self.layers[i-1].nodes, self.lr)
 
-        #4. Use δN to compute: a) weight gradients JLW for the incoming weights to N, b) bias gradients JLB for the biases at layer N, and c) JLN−1 to be passed back to layer N-1.
 
-        #5. Repeat steps 3 and 4 for each layer from N-1 to 1. Nothing needs to be passed back to the Layer 0, the input layer. 
-
-        #6. After all cases of the minibatch have been passed backwards, and all weight and bias gradients havebeen computed and accumulated, modify the weights and biases.
-
-    #def update_weigths(self):
 
     def plot_loss(self):
-        #not complete
-        plt.figure()
+        #not complete 
+        plt.figure(1)
         loss = self.loss_list
-        plt.plot(loss)
+        plt.plot(loss[0:-1:210])
         plt.title('Loss')
-        plt.xlabel(r'image')
+        #plt.xlabel(r'image')
         plt.ylabel(r'loss')
+        plt.show()
 
 
-# ---------------------- test (or run)---------------------------------------
+# ---------------------- test (and run)---------------------------------------
 
 #generate images and convert to array
-n = 12 #number of pixels in each direction; dimention n*n
-trainingsize = 3
-gen = datagenerator(n, trainingsize, 0, centered=False)
+
+gen = datagenerator(n, datasize, noise, centered=centered, imshow=imshow)
 images, target = gen.generate()
-#print(images)
-print(target)
 imgrid = gen.im2grid(images)
 imarr = gen.grid2array(imgrid)
 
-# split into train, validate, test
-split = [0.7, 0.1, 0.2]
-
-train = (len(imarr)//split[0])
-val = (len(imarr)//split[1])
-test = (len(imarr)//split[2])
-
-x_train = imarr[:train]
-y_train = target[:train]
-
-x_val = imarr[train:train+val]
-y_val = target[train:train+val]
-
-x_test = imarr[train+val:]
-y_test = target[train+val:]
-
-# make layers
-nodes1 = 20
-nodes2 = 15
-
-layer1 = layer(nodes1,n*n, trainingsize)
-layer2 = layer(nodes2, nodes1, trainingsize)
-outputlayer = layer(4, nodes2, trainingsize)
-
-layerarray = [layer1, layer2, outputlayer]
+#TODO: split into train, validate, test
 
 
-net = network(layerarray, imarr, target, 0)
+# create layers
+layers = []
 
-print(net.forward_pass(0)) #first case through forward pass
+for i in range(1, len(layer_spec)):
+    l = layer(layer_spec[i][0], layer_spec[i-1][0], act_func=layer_spec[i][1])
+    layers.append(l)  
+
+# create network
+NN = network(layers, imarr, target, lr, loss_func=loss_func)
+NN.layers[-1].weights
+
+#print(net.forward_pass(0)) #first case through forward pass
+
+#exit()
+for e in range(epochs):
+    for i in range(datasize):
+        out, loss = NN.forward_pass(i)
+        NN.backward_pass(loss, out, i)
+        #print(loss)
+
+
+NN.plot_loss()
