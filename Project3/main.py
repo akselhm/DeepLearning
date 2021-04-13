@@ -9,37 +9,42 @@ import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 
 
-# -------------------------------------- pivotial parameters ----------------------------------------------------
+# -------------------------------------- PIVOTAL PARAMETERS ------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------
+
 
 # dataset
-dataset = "mnist" #MNIST default, other options are "fmnist", "cifar10" and "omniglot"
+dataset = "cifar10"   #MNIST default, other options are "fmnist", "cifar10" and "omniglot"
 DSS_split = 0.7
 D2_split1 = 0.7
 D2_split2 = 0.2
 
 # autoencoder
 lr_ae = 0.001
-loss_ae = "MSE0"    #BCE default,
-optimizer_ae = ""   #Adam default,
-epochs_ae = 15
+loss_ae = ""        #BCE default, other options are "MSE"
+optimizer_ae = ""   #Adam default, other options are "SGD"
+epochs_ae = 10
 
-# classifier
+# classifiers
 lr_cl = 0.001
-loss_cl = "MSE0"    #Cross entropy default,
-optimizer_cl = ""   #Adam default, other option "SGD"
-epochs_cl = 20
+loss_cl = ""        #Cross entropy default, other options are "NLL"
+optimizer_cl = ""   #Adam default, other options are "SGD"
+epochs_cl = 15
 
 # latent vector
 lat_size = 50       # not implemented properly
 
 # freeze decoder
-freeze=True
+freeze=False
 
-#
-ae_reconstructions = 15
-tSNE_show=False
+# visualization
+ae_reconstructions = 7
+tSNE_show=False     # not working
+
 
 # ----------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------
+
 batchsize = 20
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -104,7 +109,7 @@ inchannels = len(data[0][0])
 classes = 10
 
 # --------------------------------------------------------------------------------------------
-class View(nn.Module):
+class View(nn.Module):      # to go from latent vector to tensor (not in use atm)
     def __init__(self, shape):
         super(View, self).__init__()
         self.shape = shape
@@ -115,12 +120,12 @@ class View(nn.Module):
 
 # ------------------------------------------- Autoencoder ------------------------------------
 
-class Flatten(nn.Module):
+class Flatten(nn.Module):   #(not in use atm)
     def forward(self, input):
         return input.view(input.size(0), -1)
 
 
-class UnFlatten(nn.Module):
+class UnFlatten(nn.Module): #(not in use atm)
     def forward(self, input, size=lat_size*batchsize):
         return input.view(input.size(0), size, 1, 1)
 
@@ -217,7 +222,7 @@ class Autoencoder(nn.Module):
         x = self.decode(x)
         return x
 
-# ---------------------------------- Semi-supervised classifier C1 ------------------------------
+# ---------------------------------- Semi-supervised classifier C1 ---------------------------------------------
 
 # -- head of the semi-supervised classifier --
 class Chead(nn.Module):
@@ -251,7 +256,7 @@ class C1(nn.Module):
         x = self.encoder(x)
         x = self.chead(x)
         return x
-# --------------------------------------- Supervised classifier C2 ---------------------------------
+# --------------------------------------- Supervised classifier C2 --------------------------------------------
 # -- used as a benchmark --
 
 class C2(nn.Module):
@@ -285,10 +290,10 @@ class C2(nn.Module):
         return num_features
 
 
-# ----------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------
 
 
-# ------------------------------- visualize ----------------------------------
+# ------------------------------------------- visualize ------------------------------------------------------------
 
 
 
@@ -304,19 +309,16 @@ def reconstruct(autoencoder, amount):
     images = images.numpy() # convert images to numpy for display
     reconstructions = reconstructions.detach().numpy()
 
-    # plot the images in the batch, along with the corresponding labels
     fig = plt.figure(figsize=(25, 4))
-    # display 20 images
     for idx in np.arange(amount):
         ax = fig.add_subplot(2, amount, idx+1, xticks=[], yticks=[])
         imshow(images[idx])
-        #ax.set_title(classes[labels[idx]])
     for idx in np.arange(amount):
         ax = fig.add_subplot(2, amount, idx+amount+1, xticks=[], yticks=[])
         imshow(reconstructions[idx])
     plt.show()
 
-def tSNEplot(features):
+def tSNEplot(features):     #not working
     tsne = TSNE(n_components=2).fit_transform(features)
 
     tx = tsne[:, 0]
@@ -365,9 +367,8 @@ def scale_to_01_range(x):
 #images, labels = dataiter.next()
 #tSNEplot(images)
 
-#exit()
 
-# ------------------------------ make models ----------------------------------
+# ------------------------------------------ Make models ----------------------------------------------------------
 encoder = Encoder()
 decoder = Decoder()
 autoencoder = Autoencoder(encoder, decoder)
@@ -382,12 +383,20 @@ reconstruct(autoencoder, ae_reconstructions)    #try to reconstruct images witho
 # -- loss functions --
 
 ae_loss = nn.BCELoss() #default
+if loss_ae == "MSE":
+    ae_loss = nn.MSELoss()
 
 cl_loss = nn.CrossEntropyLoss() #default
+if loss_cl == "MSE":
+    cl_loss = nn.MSELoss()
+elif loss_cl == "NLL":
+    cl_loss = nn.NLLLoss()
 
 
 # -- Optimizers --
 opt_ae = torch.optim.Adam(autoencoder.parameters(), lr=lr_ae) #default
+if optimizer_ae == "SGD":
+    opt_ae = torch.optim.SGD(ae.parameters(), lr=lr_ae, momentum=0.9)
 
 opt_c1 = torch.optim.Adam(c1.parameters(), lr=lr_cl) #default
 opt_c2 = torch.optim.Adam(c2.parameters(), lr=lr_cl) #default
@@ -395,7 +404,7 @@ if optimizer_cl == "SGD":
     opt_c1 = torch.optim.SGD(c1.parameters(), lr=lr_cl, momentum=0.9)
     opt_c2 = torch.optim.SGD(c2.parameters(), lr=lr_cl, momentum=0.9)
 
-# ------------------------------ train autoencoder ---------------------------------
+# ----------------------------------------- Train autoencoder ------------------------------------------------------
 print("autoencoder training")
 ae_loss_array = np.zeros(epochs_ae)
 
@@ -422,16 +431,16 @@ plt.plot(ae_loss_array)
 plt.show()
 
 
-# --------------------------------- train networks -------------------------------------
+# ------------------------------------------- Train networks ---------------------------------------------------------
 
-# -- losses --
+# -- Accuracy --
 c1_trainacc = np.zeros(epochs_cl)
 c2_trainacc = np.zeros(epochs_cl)
 c1_valacc = np.zeros(epochs_cl)
 c2_valacc = np.zeros(epochs_cl)
 
 # -- freeze parameter weigths in encoder --
-if freeze:      #not tested!
+if freeze:   
     for params in encoder.parameters():
         params.require_grad = False
 
